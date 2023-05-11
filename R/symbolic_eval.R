@@ -111,5 +111,4 @@ generateMoments <- function(p, K, omega, noiseMoments, noiseLow, noiseHigh){
   return(momentInd)
 
 }
-
-
+}
