@@ -369,7 +369,8 @@ bang2 <- function(Y, K, level = .01, verbose = T, restrict = 1, testType = "empL
             print(round(directEffect, 3))
           }
 
-        } ordering){
+        } #ordering){
+      }
     parents <- which(directEffect[z, ] != 0)
     if( length(parents) > 0){
       pruningStat <- sapply(parents, pruneParents, z, parents, Y, Y.orig, directEffect, totalEffect, K, verbose = verbose, restrict = restrict, testType = testType)
