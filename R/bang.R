@@ -99,7 +99,6 @@ bang <- function(Y, K, level = .01, verbose = T, restrict = 1, testType = "empLi
         if(length(poss.pa) >= l){
 
 
-
           # See if we've already checked all the remaining sets
             if(length(poss.pa) == 1){
               # if only 1 possible parent
@@ -126,29 +125,29 @@ bang <- function(Y, K, level = .01, verbose = T, restrict = 1, testType = "empLi
             }
 
 
-              certifiedParents <- unique(c(condSets[, which(ancestralCert > level)]))
+            certifiedParents <- unique(c(condSets[, which(ancestralCert > level)]))
 
-              # Can be certified as unconfounded ancestor so cannot be a sibling
-              siblings[v, certifiedParents] <- siblings[certifiedParents, v] <- 0
-
-
-
-              # Update effec estimates
-              update <- updateDebiased(certifiedParents, v, Y, Y.orig,
-                                       directEffect, totalEffect, K)
-
-              totalEffect <- update$totalEffect
-              directEffect <- update$directEffect
-              Y[, v] <- update$res.v
+            # Can be certified as unconfounded ancestor so cannot be a sibling
+            siblings[v, certifiedParents] <- siblings[certifiedParents, v] <- 0
 
 
-              if(verbose){
-                cat("= Total Effect Estimates =\n")
-                prmatrix(round(totalEffect, 4), rowlab = as.character(1:p), collab = as.character(1:p))
 
-                cat("= Direct Effect Estimates =\n")
-                prmatrix(round(directEffect, 4), rowlab = as.character(1:p), collab = as.character(1:p))
-              }
+            # Update effec estimates
+            update <- updateDebiased(certifiedParents, v, Y, Y.orig,
+                                     directEffect, totalEffect, K)
+
+            totalEffect <- update$totalEffect
+            directEffect <- update$directEffect
+            Y[, v] <- update$res.v
+
+
+            if(verbose){
+              cat("= Total Effect Estimates =\n")
+              prmatrix(round(totalEffect, 4), rowlab = as.character(1:p), collab = as.character(1:p))
+
+              cat("= Direct Effect Estimates =\n")
+              prmatrix(round(directEffect, 4), rowlab = as.character(1:p), collab = as.character(1:p))
+            }
 
 
           } # End if remaining siblings >= l for v
@@ -226,200 +225,199 @@ bang <- function(Y, K, level = .01, verbose = T, restrict = 1, testType = "empLi
 
 
 
-
-#### Serial Testing ###
-bang2 <- function(Y, K, level = .01, verbose = T, restrict = 1, testType = "empLik"){
-
-  if(verbose){
-    cat("======= Estimating BAP ========\n")
-  }
-  p <- dim(Y)[2]
-  n <- dim(Y)[1]
-
-
-  ### directEffect is B matrix
-  ### totalEffect is (I-B)^{-1}
-  totalEffect <- directEffect <- matrix(0, nrow = p, ncol = p)
-  diag(totalEffect) <- 1
-
-  ## Initialize complete bidirected graph
-  siblings <- matrix(1, nrow = p, ncol = p)
-  diag(siblings) <- 0
-
-  # counter for set size
-  l <- 1
-
-
-  Y.orig <- Y
-
-
-  while(any(rowSums(siblings) >= l)){
-    old.Y <- Y
-
-
-    # cycle through variables
-    for (v in 1:p) {
-      poss.pa <- which(siblings[v, ] != 0)
-      if (verbose) {
-        cat(paste("\n\n=== Checking ", v, " ===\n"))
-        cat("Remaining siblings: ")
-        cat(paste(poss.pa, collapse = " "))
-        cat(paste("; sets of size: ", l, "\n"))
-      }
-
-      # prune anything that is indep
-      if(length(poss.pa) > 0){
-        testIndepResults <- sapply(poss.pa, testIndep, v, Y, Y.orig,
-                                   K = K, verbose = verbose, restrict = restrict, testType = testType)
-
-        if(verbose){
-          cat("= Checking Independence =")
-          prmatrix(rbind(as.character(paste(poss.pa,"     ", sep = "")), as.character(round(testIndepResults, 5))), quote = F,
-                   rowlab = c("Sibling", "P-value"), collab = rep("", length(poss.pa)))
-          cat("\n")
-
+if(FALSE){
+  #### Serial Testing ###
+  bang2 <- function(Y, K, level = .01, verbose = T, restrict = 1, testType = "empLik"){
+    
+    if(verbose){
+      cat("======= Estimating BAP ========\n")
+    }
+    p <- dim(Y)[2]
+    n <- dim(Y)[1]
+    
+    
+    ### directEffect is B matrix
+    ### totalEffect is (I-B)^{-1}
+    totalEffect <- directEffect <- matrix(0, nrow = p, ncol = p)
+    diag(totalEffect) <- 1
+    
+    ## Initialize complete bidirected graph
+    siblings <- matrix(1, nrow = p, ncol = p)
+    diag(siblings) <- 0
+    
+    # counter for set size
+    l <- 1
+    
+    
+    Y.orig <- Y
+    
+    
+    while(any(rowSums(siblings) >= l)){
+      old.Y <- Y
+      
+      
+      # cycle through variables
+      for (v in 1:p) {
+        poss.pa <- which(siblings[v, ] != 0)
+        if (verbose) {
+          cat(paste("\n\n=== Checking ", v, " ===\n"))
+          cat("Remaining siblings: ")
+          cat(paste(poss.pa, collapse = " "))
+          cat(paste("; sets of size: ", l, "\n"))
         }
-
-
-        ## Remove independent nodes ##
-        siblings[poss.pa[which(testIndepResults > level)], v] <-
-          siblings[v, poss.pa[which(testIndepResults > level)]] <- 0
-
-
-      } # End independence testing
-
-
-      # Set the possible parents to be any nodes which are not certified and are not ancestors of v
-      poss.pa <- setdiff(which(siblings[v, ] != 0), which(totalEffect[, v] != 0))
-
-      if(length(poss.pa) >= l){
-
-
-
-        # See if we've already checked all the remaining sets
-        if(length(poss.pa) == 1){
-          # if only 1 possible parent
-          # combn gives unwanted result, so manually make matrix
-          condSets <- matrix(c(poss.pa,
-                               which(directEffect[v, ] != 0)), ncol = 1)
-
-        } else {
-          condSets <- combn(poss.pa, l)
-          condSets <- rbind(condSets, matrix(which(directEffect[v, ] != 0),
-                                             nrow = length(which(directEffect[v, ] != 0)),
-                                             ncol = dim(condSets)[2]))
-        }
-
-        j <- 0
-        foundCertified <- FALSE
-
-
-        while(j < ncol(condSets) & !foundCertified){
-          j <- j + 1
-
-
-
-
+        
+        # prune anything that is indep
+        if(length(poss.pa) > 0){
+          testIndepResults <- sapply(poss.pa, testIndep, v, Y, Y.orig,
+                                     K = K, verbose = verbose, restrict = restrict, testType = testType)
+          
           if(verbose){
-            cat(paste(condSets[, j], collapse = "-"))
-            cat(">")
-          }
-
-          foundCertified <- certifyAncest_symb(condSets[, j], v, directEffect, Sigma,
-                                               Y.orig, Y, K, errMomentList, cutoff, verbose = verbose)
-          if(verbose){
-            cat(" ")
-
-          }
-
-        }
-
-        if(foundCertified){
-          certifiedParents <- condSets[, j]
-          if(verbose){
-            cat("Certified: ")
-            cat(paste(certifiedParents, collapse = "-"))
+            cat("= Checking Independence =")
+            prmatrix(rbind(as.character(paste(poss.pa,"     ", sep = "")), as.character(round(testIndepResults, 5))), quote = F,
+                     rowlab = c("Sibling", "P-value"), collab = rep("", length(poss.pa)))
             cat("\n")
-
+            
           }
-
-        } else {
-          certifiedParents <- c()
+          
+          
+          ## Remove independent nodes ##
+          siblings[poss.pa[which(testIndepResults > level)], v] <-
+            siblings[v, poss.pa[which(testIndepResults > level)]] <- 0
+          
+          
+        } # End independence testing
+        
+        
+        # Set the possible parents to be any nodes which are not certified and are not ancestors of v
+        poss.pa <- setdiff(which(siblings[v, ] != 0), which(totalEffect[, v] != 0))
+        
+        if(length(poss.pa) >= l){
+          
+          
+          
+          # See if we've already checked all the remaining sets
+          if(length(poss.pa) == 1){
+            # if only 1 possible parent
+            # combn gives unwanted result, so manually make matrix
+            condSets <- matrix(c(poss.pa,
+                                 which(directEffect[v, ] != 0)), ncol = 1)
+            
+          } else {
+            condSets <- combn(poss.pa, l)
+            condSets <- rbind(condSets, matrix(which(directEffect[v, ] != 0),
+                                               nrow = length(which(directEffect[v, ] != 0)),
+                                               ncol = dim(condSets)[2]))
+          }
+          
+          j <- 0
+          foundCertified <- FALSE
+          
+          
+          while(j < ncol(condSets) & !foundCertified){
+            j <- j + 1
+            
+            
+            
+            
+            if(verbose){
+              cat(paste(condSets[, j], collapse = "-"))
+              cat(">")
+            }
+            
+            foundCertified <- certifyAncest_symb(condSets[, j], v, directEffect, Sigma,
+                                                 Y.orig, Y, K, errMomentList, cutoff, verbose = verbose)
+            if(verbose){
+              cat(" ")
+              
+            }
+            
+          }
+          
+          if(foundCertified){
+            certifiedParents <- condSets[, j]
+            if(verbose){
+              cat("Certified: ")
+              cat(paste(certifiedParents, collapse = "-"))
+              cat("\n")
+              
+            }
+            
+          } else {
+            certifiedParents <- c()
+          }
+          
+          
+          
+          
+          if(length(certifiedParents) > 0){
+            # Can be certified as unconfounded ancestor so cannot be a sibling
+            siblings[v, certifiedParents] <- siblings[certifiedParents, v] <- 0
+            
+            
+            # Update effect estimates
+            
+            update <- updateDebiased_symb(v, certifiedParents, Y.orig, Y, Sigma, directEffect)
+            
+            
+            totalEffect <- update$totalEffect
+            directEffect <- update$directEffect
+            Y[[v]] <- update$res.v
+            
+            if(verbose){
+              cat("\n")
+              print(round(directEffect, 3))
+            }
+            
+          } #ordering)
+          
         }
-
-
-
-
+      }
+      parents <- which(directEffect[z, ] != 0)
+      if( length(parents) > 0){
+        pruningStat <- sapply(parents, pruneParents, z, parents, Y, Y.orig, directEffect, totalEffect, K, verbose = verbose, restrict = restrict, testType = testType)
+        
+        
+        certifiedParents <- parents[which(pruningStat < level)]
         if(length(certifiedParents) > 0){
-          # Can be certified as unconfounded ancestor so cannot be a sibling
-          siblings[v, certifiedParents] <- siblings[certifiedParents, v] <- 0
-
-
-          # Update effect estimates
-
-          update <- updateDebiased_symb(v, certifiedParents, Y.orig, Y, Sigma, directEffect)
-
-
+          update <- updateDebiased(certifiedParents, z, Y, Y.orig,
+                                   directEffect, totalEffect, K)
+          
           totalEffect <- update$totalEffect
           directEffect <- update$directEffect
-          Y[[v]] <- update$res.v
-
-          if(verbose){
-            cat("\n")
-            print(round(directEffect, 3))
-          }
-
-        } #ordering){
-      }
-    parents <- which(directEffect[z, ] != 0)
-    if( length(parents) > 0){
-      pruningStat <- sapply(parents, pruneParents, z, parents, Y, Y.orig, directEffect, totalEffect, K, verbose = verbose, restrict = restrict, testType = testType)
-
-
-      certifiedParents <- parents[which(pruningStat < level)]
-      if(length(certifiedParents) > 0){
-        update <- updateDebiased(certifiedParents, z, Y, Y.orig,
-                                 directEffect, totalEffect, K)
-
-        totalEffect <- update$totalEffect
-        directEffect <- update$directEffect
-        Y[, z] <- update$res.v
+          Y[, z] <- update$res.v
+        } else {
+          
+          # If no parents, remove all from directEffect and update totalEffect
+          directEffect[z, ] <- 0
+          totalEffect <- solve(diag(rep(1, p)) -  directEffect)
+          Y[, z] <- Y.orig[, z]
+        }
+        
+        if(verbose){
+          cat(paste("Pruning:", z))
+          
+          print(parents)
+          prmatrix(rbind(as.character(paste(parents,"     ", sep = "")), as.character(round(pruningStat, 5))), quote = F,
+                   rowlab = c("Parents", "P-value"), collab = rep("", length(parents)))
+          cat("\n")
+          
+        }
+        
       } else {
-
-        # If no parents, remove all from directEffect and update totalEffect
-        directEffect[z, ] <- 0
-        totalEffect <- solve(diag(rep(1, p)) -  directEffect)
-        Y[, z] <- Y.orig[, z]
+        if(verbose){
+          cat(paste("Pruning:", z, "; no parents\n"))
+        }
       }
-
-      if(verbose){
-        cat(paste("Pruning:", z))
-
-        print(parents)
-        prmatrix(rbind(as.character(paste(parents,"     ", sep = "")), as.character(round(pruningStat, 5))), quote = F,
-                 rowlab = c("Parents", "P-value"), collab = rep("", length(parents)))
-        cat("\n")
-
-      }
-
-    } else {
-      if(verbose){
-        cat(paste("Pruning:", z, "; no parents\n"))
-      }
+      
     }
-
-
-
-
-
-
+    
+    
+    return(list(totalEffect = totalEffect,
+                directEffect = directEffect, omega = cov(Y), dEdge = ifelse(directEffect != 0, 1, 0),
+                bEdge = siblings + diag(rep(1, p)), errs = Y))
   }
-
-
-  return(list(totalEffect = totalEffect,
-              directEffect = directEffect, omega = cov(Y), dEdge = ifelse(directEffect != 0, 1, 0),
-              bEdge = siblings + diag(rep(1, p)), errs = Y))
 }
+
 
 
 
@@ -438,15 +436,15 @@ testIndep <- function(u, v, errs, Y, K,
   if(testType == "empLik"){
 
     if(restrict == 1){
-    mean0mat <- cbind(errs[, u, drop = F]^2 * Y[, v, drop = F],
-                      errs[, u, drop = F] * Y[, v, drop = F]^2)
-    if(K > 3){
-      for(k in 3:(K-1)){
-        mean0mat <- cbind(mean0mat,
-                          errs[, u, drop = F]^k * Y[, v, drop = F],
-                          errs[, u, drop = F] * Y[, v, drop = F]^k)
+      mean0mat <- cbind(errs[, u, drop = F]^2 * Y[, v, drop = F],
+                        errs[, u, drop = F] * Y[, v, drop = F]^2)
+      if(K > 3){
+        for(k in 3:(K-1)){
+          mean0mat <- cbind(mean0mat,
+                            errs[, u, drop = F]^k * Y[, v, drop = F],
+                            errs[, u, drop = F] * Y[, v, drop = F]^k)
+        }
       }
-    }
     } else if (restrict == 2) {
       mean0mat <- cbind(errs[, u, drop = F]^(K-1) * Y[, v, drop = F],
                         errs[, u, drop = F] * Y[, v, drop = F]^(K-1))
@@ -551,7 +549,7 @@ testAncestorDebiased <- function(C, v, errs, Y, directEffect, totalEffect, K,
   }
 
   totalEffect <- round(solve(diag(rep(1, p)) - directEffect), 10)
-
+  
   res.v <- c(Y[, v] - errs[, ancestors, drop = F] %*% t(totalEffect[v, ancestors, drop = F]))
 
   if(testType == "empLik"){
@@ -642,7 +640,7 @@ updateDebiased <- function(C, v, errs, Y, directEffect, totalEffect, K, verbose 
     directEffect[v, -C] <- 0
     totalEffect <- round(solve(diag(rep(1, p)) - directEffect), 10)
 
-
+    print('1')
     res.v <- c(Y[, v] - errs[, ancestors, drop = F] %*% t(totalEffect[v, ancestors, drop = F]))
 
     return(list(totalEffect = totalEffect, directEffect = directEffect, res.v = res.v))
@@ -680,7 +678,8 @@ pruneHelper <- function(pa, v, parents, errs, Y, directEffect, totalEffect, K, v
 
   totalEffect <- round(solve(diag(rep(1, p)) - directEffect), 10)
 
-
+  
+  print('2')
   res.v <- c(Y[, v] - errs[, ancestors, drop = F] %*% t(totalEffect[v, ancestors, drop = F]))
 
 
